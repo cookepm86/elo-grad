@@ -20,15 +20,33 @@ uv add git+https://github.com/cookepm86/elo-grad
 
 ### Minimal Example
 
-**TODO**
+```python
+from elo_grad import LogisticRegression, SGDOptimizer
 
-## Why?
 
-**TODO**
+model = LogisticRegression(beta=200, default_init_weight=1200, init_weights=None)
+sgd = SGDOptimizer(alpha=20)
 
-## Features
+# Check initial weights (NOTE: time is None)
+print("Initial weights:")
+print(model.weights["Tom"], model.weights["Jerry"])
 
-**TODO**
+# Update after Tom beats Jerry at time t=1
+sgd.update_model(model, y=1, entity_1="Tom", entity_2="Jerry", t=1)
+
+# Check new weights
+print("\nNew weights:")
+print(model.weights["Tom"], model.weights["Jerry"])
+```
+
+Output:
+```
+Initial weights:
+(None, 1200) (None, 1200)
+
+New weights:
+(1, 1210.0) (1, 1190.0)
+```
 
 ## References
 
