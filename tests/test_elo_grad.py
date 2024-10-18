@@ -37,40 +37,43 @@ class TestLogisticRegression:
 class TestSGDOptimizer:
 
     def test_calculate_update_step(self):
-        opt_1 = SGDOptimizer(
-            model=LogisticRegression(
-                default_init_weight=1000,
-                init_weights=dict(entity_1=(None, 1500), entity_2=(None, 1600)),
-                beta=200,
-            ),
-            alpha=32,
+        model_1 = LogisticRegression(
+            default_init_weight=1000,
+            init_weights=dict(entity_1=(None, 1500), entity_2=(None, 1600)),
+            beta=200,
         )
-        update_1 = opt_1.calculate_update_step(1, "entity_1", "entity_2")
+        opt_1 = SGDOptimizer(alpha=32)
+        update_1 = opt_1.calculate_update_step(model_1, 1, "entity_1", "entity_2")
 
         assert round(update_1[0], 2) == 20.48
         assert round(update_1[1], 2) == -20.48
 
-        opt_2 = SGDOptimizer(
-            model=LogisticRegression(
-                default_init_weight=1000,
-                init_weights=dict(entity_2=(None, 1600)),
-                beta=200,
-            ),
-            alpha=20,
+        model_2 = LogisticRegression(
+            default_init_weight=1000,
+            init_weights=dict(entity_2=(None, 1600)),
+            beta=200,
         )
-        update_2 = opt_2.calculate_update_step(0, "entity_1", "entity_2")
+        opt_2 = SGDOptimizer(alpha=20)
+        update_2 = opt_2.calculate_update_step(model_2, 0, "entity_1", "entity_2")
 
         assert round(update_2[0], 2) == -0.61
         assert round(update_2[1], 2) == 0.61
 
     def test_calculate_gradient_raises(self):
-        opt = SGDOptimizer(
-            model=LogisticRegression(
-                default_init_weight=1000,
-                init_weights=None,
-                beta=200,
-            ),
-            alpha=20,
+        model = LogisticRegression(
+            default_init_weight=1000,
+            init_weights=None,
+            beta=200,
         )
+        opt = SGDOptimizer(alpha=20)
         with pytest.raises(ValueError, match="Invalid result value"):
-            opt.calculate_update_step(-1, "entity_1", "entity_2")
+            opt.calculate_update_step(model, -1, "entity_1", "entity_2")
+
+    def test_update_model(self):
+        model = LogisticRegression(beta=200, default_init_weight=1200, init_weights=None)
+        sgd = SGDOptimizer(alpha=20)
+
+        sgd.update_model(model, y=1, entity_1="Tom", entity_2="Jerry", t=1)
+
+        assert model.weights["Tom"] == (1, 1210.0)
+        assert model.weights["Jerry"] == (1, 1190.0)
