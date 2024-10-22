@@ -1,6 +1,7 @@
+import pandas as pd
 import pytest
 
-from elo_grad import LogisticRegression, SGDOptimizer
+from elo_grad import LogisticRegression, SGDOptimizer, EloEstimator
 
 
 class TestLogisticRegression:
@@ -77,3 +78,52 @@ class TestSGDOptimizer:
 
         assert model.ratings["Tom"] == (1, 1210.0)
         assert model.ratings["Jerry"] == (1, 1190.0)
+
+
+class TestEloEstimator:
+
+    estimator = EloEstimator(k_factor=20, default_init_rating=1200)
+
+    def test_transform_raises(self):
+        with pytest.raises(ValueError, match="X must be a pandas DataFrame."):
+            self.estimator.transform(1)
+
+        df = pd.DataFrame(
+            columns=["entity_1", "entity_2", "score"],
+            index=[3, 2, 1],
+        )
+        with pytest.raises(ValueError, match="Index must be sorted."):
+            self.estimator.transform(df)
+
+    def test_transform(self):
+        df = pd.DataFrame(
+            data=[
+                ("A", "B", 1),
+                ("A", "C", 1),
+                ("B", "C", 0),
+                ("C", "A", 0),
+                ("C", "B", 1),
+            ],
+            columns=["entity_1", "entity_2", "score"],
+            index=[1, 2, 3, 4, 4],
+        )
+
+        expected_series = pd.Series(
+            data=[0.5, 0.51, 0.5, 0.47, 0.53],
+            index=[1, 2, 3, 4, 4],
+            name="expected_score",
+        )
+
+        output_series = self.estimator.transform(df)
+
+        # Check expected scores
+        pd.testing.assert_series_equal(expected_series, output_series, check_exact=False, atol=1e-2)
+
+        # Check ratings
+        expected_ratings = {
+            "A": (2, 1200 + 10 + 9.7123 + 9.4413),
+            "B": (1, 1200 - 10 - 9.9917 - 9.4172),
+            "C": (2, 1200 - 9.7123 + 9.9917 - 9.4413 + 9.4172),
+        }
+        for k, v in self.estimator.model.ratings.items():
+            assert round(expected_ratings[k][1], 2) == round(v[1], 2)
