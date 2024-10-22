@@ -13,39 +13,52 @@ All models are `scikit-learn` compatible.
 
 You can install `elo-grad` with:
 ```bash
-uv add git+https://github.com/cookepm86/elo-grad
+pip install elo-grad
 ```
 
 ## Quick Start
 
+Detailed example notebooks are provided in the `examples/` directory.
+To install any extra dependencies required to run the notebooks install with:
+```bash
+pip install elo-grad[examples]
+```
+
 ### Minimal Example
 
 ```python
-from elo_grad import LogisticRegression, SGDOptimizer
+from elo_grad import EloEstimator
 
-model = LogisticRegression(beta=200, default_init_rating=1200, init_ratings=None)
-sgd = SGDOptimizer(k_factor=20)
-
-# Check initial weights (NOTE: time is None)
-print("Initial weights:")
-print(model.ratings["Tom"], model.ratings["Jerry"])
-
-# Update after Tom beats Jerry at time t=1
-sgd.update_model(model, y=1, entity_1="Tom", entity_2="Jerry", t=1)
-
-# Check new weights
-print("\nNew weights:")
-print(model.ratings["Tom"], model.ratings["Jerry"])
+# Input DataFrame with sorted index of Unix timestamps
+# and columns entity_1 | entity_2 | score
+# where score = 1 if player_1 won and score = 0 if
+# player_2 won.
+df = ...
+estimator = EloEstimator(
+    k_factor=20, 
+    default_init_rating=1200,
+    entity_cols=("player_1", "player_2"),
+    score_col="result",
+)
+# Get expected scores
+expected_scores = estimator.transform(df)
+# Get final ratings (of form (Unix timestamp, rating))
+ratings = estimator.model.ratings
 ```
 
-Output:
-```
-Initial weights:
-(None, 1200) (None, 1200)
+## Roadmap :compass:
 
-New weights:
-(1, 1210.0) (1, 1190.0)
-```
+In rough order, things we want to add are:
+- Scikit-learn compatibility
+- Proper documentation
+- Plotting support
+- Support for additional features, e.g. home advantage
+- Regularization (L1 & L2)
+- Support for Polars
+- Head-to-head ratings
+- Other optimizers, e.g. momentum
+- Poisson model support
+- Support for draws
 
 ## References
 
