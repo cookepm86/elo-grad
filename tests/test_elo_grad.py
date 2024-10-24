@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -86,14 +87,14 @@ class TestEloEstimator:
 
     def test_transform_raises(self):
         with pytest.raises(ValueError, match="X must be a pandas DataFrame."):
-            self.estimator.transform(1)
+            self.estimator.fit(1)
 
         df = pd.DataFrame(
             columns=["entity_1", "entity_2", "score"],
             index=[3, 2, 1],
         )
         with pytest.raises(ValueError, match="Index must be sorted."):
-            self.estimator.transform(df)
+            self.estimator.fit(df)
 
     def test_transform(self):
         df = pd.DataFrame(
@@ -108,16 +109,12 @@ class TestEloEstimator:
             index=[1, 2, 3, 4, 4],
         )
 
-        expected_series = pd.Series(
-            data=[0.5, 0.51, 0.5, 0.47, 0.53],
-            index=[1, 2, 3, 4, 4],
-            name="expected_score",
-        )
+        expected_arr = np.array([0.5, 0.51, 0.5, 0.47, 0.53])
 
-        output_series = self.estimator.transform(df)
+        output_arr = self.estimator.predict_proba(df)[:, 1]
 
         # Check expected scores
-        pd.testing.assert_series_equal(expected_series, output_series, check_exact=False, atol=1e-2)
+        np.testing.assert_allclose(expected_arr, output_arr, atol=1e-2)
 
         # Check ratings
         expected_ratings = {
