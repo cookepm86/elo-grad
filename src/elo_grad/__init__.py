@@ -9,6 +9,8 @@ import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.metrics import log_loss
 
+from .plot import HistoryPlotterMixin
+
 __all__ = ["EloEstimator", "LogisticRegression", "RatingSystemMixin", "SGDOptimizer"]
 
 
@@ -167,7 +169,7 @@ class RatingSystemMixin:
         return {"requires_y": False}
 
 
-class EloEstimator(RatingSystemMixin, BaseEstimator):
+class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
     """
     Elo rating system classifier.
 
@@ -189,14 +191,20 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
         Underlying statistical model.
     optimizer : Optimizer
         Optimizer to update the model.
+    rating_history : List[Tuple[Optional[int], float]]
+        Historical ratings of entities (if track_rating_history is True).
     score_col : str
         Name of score column (1 if entity_1 wins and 0 if entity_2 wins).
         Draws are not currently supported.
+    track_rating_history : bool
+        Flag to track historical ratings of entities.
 
     Methods
     -------
     fit(X, y=None)
         Fit Elo rating system/calculate ratings.
+    record_ratings()
+        Record the current ratings of entities.
     predict_proba(X)
         Produce probability estimates.
     predict(X)
@@ -211,6 +219,7 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
         init_ratings: Optional[Dict[str, Tuple[Optional[int], float]]] = None,
         entity_cols: Tuple[str, str] = ("entity_1", "entity_2"),
         score_col: str = "score",
+        track_rating_history: bool = False,
     ) -> None:
         """
         Parameters
@@ -228,6 +237,8 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
         score_col : str
             Name of score column (1 if entity_1 wins and 0 if entity_2 wins).
             Draws are not currently supported.
+        track_rating_history : bool
+            Flag to track historical ratings of entities.
         """
         self.entity_cols: Tuple[str, str] = entity_cols
         self.score_col: str = score_col
@@ -242,6 +253,8 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
         )
         self.k_factor: float = k_factor
         self.optimizer: Optimizer = SGDOptimizer(k_factor=k_factor)
+        self.track_rating_history: bool = track_rating_history
+        self.rating_history: List[Tuple[Optional[int], float]] = defaultdict(list)  # type:ignore
 
     @staticmethod
     def _reinitialize_rating_system(method: Callable):
@@ -275,6 +288,13 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
         for entity in rating_deltas:
             self.model.ratings[entity] = (t, self.model.ratings[entity][1] + rating_deltas[entity])
 
+    def record_ratings(self) -> None:
+        """
+        Record the current ratings of entities.
+        """
+        for k, v in self.model.ratings.items():
+            self.rating_history[k].append(v)  # type:ignore
+
     def _transform(self, X: pd.DataFrame, return_expected_score: bool) -> Optional[np.ndarray]:
         if not isinstance(X, pd.DataFrame):
             raise ValueError("X must be a pandas DataFrame.")
@@ -291,6 +311,8 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
             if ix != current_ix:
                 self._update_ratings(ix, rating_deltas)
                 current_ix, rating_deltas = ix, defaultdict(float)
+                if self.track_rating_history:
+                    self.record_ratings()
 
             expected_score: float = self.model.calculate_expected_score(
                 self.model.ratings[entity_1][1],
@@ -309,6 +331,8 @@ class EloEstimator(RatingSystemMixin, BaseEstimator):
             rating_deltas[entity_2] += rating_delta[1]
 
         self._update_ratings(ix, rating_deltas)
+        if self.track_rating_history:
+            self.record_ratings()
 
         if return_expected_score:
             return np.array(preds)
