@@ -50,7 +50,6 @@ ratings = estimator.model.ratings
 
 In rough order, things we want to add are:
 - Proper documentation
-- Plotting support
 - Support for additional features, e.g. home advantage
 - Regularization (L1 & L2)
 - Support for Polars
@@ -58,6 +57,7 @@ In rough order, things we want to add are:
 - Other optimizers, e.g. momentum
 - Poisson model support
 - Support for draws
+- Extend plotting support, e.g. plotly
 
 ## :blue_book: References
 
