@@ -1,0 +1,39 @@
+site_name: EloGrad
+site_description: An extended Elo model Python implementation.
+site_author: Mike Cooke
+
+repo_name: cookepm86/elo-grad
+repo_url: https://github.com/cookepm86/elo-grad
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: teal
+    accent: purple
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+
+markdown_extensions:
+  - tables
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/katex.js
+  - https://unpkg.com/katex@0/dist/katex.min.js
+  - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
+
+extra_css:
+  - https://unpkg.com/katex@0/dist/katex.min.css
+
+nav:
+  - Home: index.md
+  - Elo as Logistic Regression: intro.md
+  - API Reference: api.md
