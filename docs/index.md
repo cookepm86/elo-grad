@@ -1,22 +1,22 @@
-# ♟️ EloGrad
+# :chess_pawn: EloGrad
 
 **Extended Elo model implementation.**
 
-**EloGrad** leverages the framing of the 
+**EloGrad** _(**Elo** as **Grad**ient descent)_ leverages the framing of the 
 [Elo rating system](https://en.wikipedia.org/wiki/Elo_rating_system)
 as logistic regression with stochastic gradient descent
 (see [this blog](https://stmorse.github.io/journal/Elo.html) for a nice walkthrough)
 to offer a collection of extensions to the rating system.
 All models are `scikit-learn` compatible.
 
-## 📖 Installation
+## :book: Installation
 
 You can install `elo-grad` with:
 ```bash
 pip install elo-grad
 ```
 
-## ⏱️ Quick Start
+## :zap: Quick Start
 
 Detailed example notebooks are provided in the `examples/` directory.
 To install any extra dependencies required to run the notebooks install with:
@@ -46,10 +46,10 @@ expected_scores = estimator.predict_proba(df)
 ratings = estimator.model.ratings
 ```
 
-## 🧭 Roadmap
+## :compass: Roadmap
 
 In rough order, things we want to add are:
-- Proper documentation
+
 - Support for additional features, e.g. home advantage
 - Regularization (L1 & L2)
 - Support for Polars
@@ -59,7 +59,7 @@ In rough order, things we want to add are:
 - Support for draws
 - Extend plotting support, e.g. plotly
 
-## 📘 References
+## :blue_book: References
 
 1. Elo rating system: https://en.wikipedia.org/wiki/Elo_rating_system
 2. Elo rating system as logistic regression with stochastic gradient descent: https://stmorse.github.io/journal/Elo.html

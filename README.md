@@ -16,7 +16,7 @@ You can install `elo-grad` with:
 pip install elo-grad
 ```
 
-## :stopwatch: Quick Start
+## :zap: Quick Start
 
 Detailed example notebooks are provided in the `examples/` directory.
 To install any extra dependencies required to run the notebooks install with:
@@ -49,7 +49,6 @@ ratings = estimator.model.ratings
 ## :compass: Roadmap
 
 In rough order, things we want to add are:
-- Proper documentation
 - Support for additional features, e.g. home advantage
 - Regularization (L1 & L2)
 - Support for Polars
