@@ -126,7 +126,7 @@ class SGDOptimizer(Optimizer):
         return (
             self.k_factor[0] * entity_1_grad,
             -self.k_factor[1] * entity_1_grad,
-            *(k * v * entity_1_grad for k, v in zip(self.k_factor, regressor_values)),
+            *(k * v * entity_1_grad for k, v in zip(self.k_factor[2:], regressor_values)),
         )
 
 
@@ -346,10 +346,21 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             raise ValueError("Index must be sorted.")
         current_ix: int = X.index[0]
 
+        additional_regressor_flag: bool = len(self.additional_regressors) > 0
+        additional_regressor_contrib: float = 0.0
+        additional_regressor_values: Optional[Tuple[float, ...]] = None
         preds = array("f") if return_expected_score else None
         rating_deltas: Dict[str, float] = defaultdict(float)
         for row in X.itertuples(index=True):
-            ix, entity_1, entity_2, score = row
+            if additional_regressor_flag:
+                ix, entity_1, entity_2, score, *additional_regressor_values = row
+                additional_regressor_contrib = sum(
+                    self.model.ratings[k.name][1] * v  # type:ignore
+                    for k, v in zip(self.additional_regressors, additional_regressor_values)  # type:ignore
+                )
+            else:
+                ix, entity_1, entity_2, score = row
+
             if ix != current_ix:
                 self._update_ratings(ix, rating_deltas)
                 current_ix, rating_deltas = ix, defaultdict(float)
@@ -359,20 +370,24 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             expected_score: float = self.model.calculate_expected_score(
                 self.model.ratings[entity_1][1],
                 -self.model.ratings[entity_2][1],
+                additional_regressor_contrib,
             )
             if return_expected_score:
                 preds.append(expected_score)  # type:ignore
 
-            rating_delta: Tuple[float, ...] = self.optimizer.calculate_update_step(
+            _rating_deltas: Tuple[float, ...] = self.optimizer.calculate_update_step(
                 model=self.model,
                 y=score,
                 entity_1=entity_1,
                 entity_2=entity_2,
-                regressor_contrib=0,
-                regressor_values=None,
+                regressor_contrib=additional_regressor_contrib,
+                regressor_values=additional_regressor_values,
             )
-            rating_deltas[entity_1] += rating_delta[0]
-            rating_deltas[entity_2] += rating_delta[1]
+            rating_deltas[entity_1] += _rating_deltas[0]
+            rating_deltas[entity_2] += _rating_deltas[1]
+            if additional_regressor_flag:
+                for i, r in enumerate(self.additional_regressors, start=2):
+                    rating_deltas[r.name] += _rating_deltas[i]
 
         self._update_ratings(ix, rating_deltas)
         if self.track_rating_history:
