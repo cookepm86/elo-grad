@@ -7,6 +7,8 @@ repo_url: https://github.com/cookepm86/elo-grad
 
 theme:
   name: material
+  features:
+    - content.code.copy
   palette:
     scheme: slate
     primary: teal
@@ -47,4 +49,6 @@ extra_css:
 nav:
   - Home: index.md
   - Elo as Logistic Regression: intro.md
+  - Feature Reference:
+      - Additional Regressors: feature_ref/additional_regressors.md
   - API Reference: api.md
