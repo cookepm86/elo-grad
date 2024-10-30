@@ -214,6 +214,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         Initial ratings for entities (dictionary of form entity: (Unix timestamp, rating))
     k_factor : float
         Elo K-factor/step-size for gradient descent.
+    k_factor_vec : Tuple[float, ...]
+        Vector of Elo K-factor/step-size for gradient descent.
     model : Model
         Underlying statistical model.
     optimizer : Optimizer
@@ -223,6 +225,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
     score_col : str
         Name of score column (1 if entity_1 wins and 0 if entity_2 wins).
         Draws are not currently supported.
+    additional_regressors : Optional[List[Regressor]]
+        Additional regressors to include, e.g. home advantage.
     track_rating_history : bool
         Flag to track historical ratings of entities.
 
@@ -246,13 +250,14 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         init_ratings: Optional[Dict[str, Tuple[Optional[int], float]]] = None,
         entity_cols: Tuple[str, str] = ("entity_1", "entity_2"),
         score_col: str = "score",
+        additional_regressors: Optional[List[Regressor]] = None,
         track_rating_history: bool = False,
     ) -> None:
         """
         Parameters
         ----------
         k_factor : float
-            Elo K-factor/step-size for gradient descent.
+            Elo K-factor/step-size for gradient descent for the entities.
         default_init_rating : float
             Default initial rating for entities.
         beta : float
@@ -264,6 +269,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         score_col : str
             Name of score column (1 if entity_1 wins and 0 if entity_2 wins).
             Draws are not currently supported.
+        additional_regressors : Optional[List[Regressor]]
+            Additional regressors to include, e.g. home advantage.
         track_rating_history : bool
             Flag to track historical ratings of entities.
         """
@@ -278,8 +285,16 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             default_init_rating=default_init_rating,
             init_ratings=init_ratings,
         )
+        self.additional_regressors: List[Regressor] = additional_regressors if additional_regressors is not None else []
+        if additional_regressors is not None:
+            self.columns.extend([r.name for r in additional_regressors])
         self.k_factor: float = k_factor
-        self.optimizer: Optimizer = SGDOptimizer(k_factor=(k_factor, k_factor))
+        self.k_factor_vec: Tuple[float, ...] = (
+            k_factor,
+            k_factor,
+            *(r.k_factor if r.k_factor is not None else k_factor for r in self.additional_regressors),
+        )
+        self.optimizer: Optimizer = SGDOptimizer(k_factor=self.k_factor_vec)
         self.track_rating_history: bool = track_rating_history
         self.rating_history: List[Tuple[Optional[int], float]] = defaultdict(list)  # type:ignore
 
