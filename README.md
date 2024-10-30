@@ -49,12 +49,12 @@ ratings = estimator.model.ratings
 ## :compass: Roadmap
 
 In rough order, things we want to add are:
-- Support for additional features, e.g. home advantage
+- Poisson model support
 - Regularization (L1 & L2)
 - Support for Polars
 - Head-to-head ratings
+- Interaction terms
 - Other optimizers, e.g. momentum
-- Poisson model support
 - Support for draws
 - Extend plotting support, e.g. plotly
 
@@ -62,3 +62,4 @@ In rough order, things we want to add are:
 
 1. Elo rating system: https://en.wikipedia.org/wiki/Elo_rating_system
 2. Elo rating system as logistic regression with stochastic gradient descent: https://stmorse.github.io/journal/Elo.html
+3. Elo rating system for NFL predictions: https://fivethirtyeight.com/methodology/how-our-nfl-predictions-work/
