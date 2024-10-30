@@ -42,13 +42,16 @@ class Model(abc.ABC):
 class Optimizer(abc.ABC):
 
     @abc.abstractmethod
-    def calculate_update_step(self, model: Model, y: int, entity_1: str, entity_2: str) -> Tuple[float, ...]:
+    def calculate_update_step(
+        self,
+        model: Model,
+        y: int,
+        entity_1: str,
+        entity_2: str,
+        regressor_contrib: float,
+        regressor_values: Optional[Tuple[float, ...]],
+    ) -> Tuple[float, ...]:
         ...
-
-    @abc.abstractmethod
-    def update_model(self, model: Model, y: int, entity_1: str, entity_2: str, t: Optional[int] = None) -> None:
-        ...
-
 
 class LogisticRegression(Model):
 
@@ -81,25 +84,30 @@ class SGDOptimizer(Optimizer):
     def __init__(self, k_factor: float) -> None:
         self.k_factor: float = k_factor
 
-    def calculate_update_step(self, model: Model, y: int, entity_1: str, entity_2: str) -> Tuple[float, ...]:
-        grad: float = model.calculate_gradient(
+    def calculate_update_step(
+        self,
+        model: Model,
+        y: int,
+        entity_1: str,
+        entity_2: str,
+        regressor_contrib: float,
+        regressor_values: Optional[Tuple[float, ...]],
+    ) -> Tuple[float, ...]:
+        entity_grad: float = model.calculate_gradient(
             y,
             model.ratings[entity_1][1],
             -model.ratings[entity_2][1],
+            regressor_contrib,
         )
-        step: float = self.k_factor * grad
-
-        return step, -step
-
-    def update_model(self, model: Model, y: int, entity_1: str, entity_2: str, t: Optional[int] = None) -> None:
-        delta = self.calculate_update_step(model, y, entity_1, entity_2)
-        model.ratings[entity_1] = (
-            t,
-            model.ratings[entity_1][1] + delta[0],
-        )
-        model.ratings[entity_2] = (
-            t,
-            model.ratings[entity_2][1] + delta[1],
+        if regressor_values is None:
+            return (
+                self.k_factor * entity_grad,
+                -self.k_factor * entity_grad,
+            )
+        return (
+            entity_grad,
+            -entity_grad,
+            *(self.k_factor * v * entity_grad for v in regressor_values),
         )
 
 
@@ -326,6 +334,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
                 y=score,
                 entity_1=entity_1,
                 entity_2=entity_2,
+                regressor_contrib=0,
+                regressor_values=None,
             )
             rating_deltas[entity_1] += rating_delta[0]
             rating_deltas[entity_2] += rating_delta[1]
