@@ -1,6 +1,6 @@
 # :chess_pawn: EloGrad
 
-**Extended Elo model implementation.**
+**Extended Elo rating system Python implementation.**
 
 **EloGrad** _(**Elo** as **Grad**ient descent)_ leverages the framing of the 
 [Elo rating system](https://en.wikipedia.org/wiki/Elo_rating_system)
