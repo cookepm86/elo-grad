@@ -1,7 +1,10 @@
 [project]
 name = "elo-grad"
 version = "0.2.4"
-description = "Add your description here"
+description = "Extended Elo rating system implementation exploiting the equivalence with logistic regression."
+authors = [
+    {name = "Mike Cooke", email = "cookepm@tcd.ie"},
+]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
