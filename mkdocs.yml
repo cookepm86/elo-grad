@@ -7,6 +7,8 @@ repo_url: https://github.com/cookepm86/elo-grad
 
 theme:
   name: material
+  features:
+    - content.code.copy
   palette:
     scheme: slate
     primary: teal
