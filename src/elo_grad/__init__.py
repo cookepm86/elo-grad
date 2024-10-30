@@ -100,8 +100,8 @@ class LogisticRegression(Model):
 
 class SGDOptimizer(Optimizer):
 
-    def __init__(self, k_factor: float) -> None:
-        self.k_factor: float = k_factor
+    def __init__(self, k_factor: Tuple[float, ...]) -> None:
+        self.k_factor: Tuple[float, ...] = k_factor
 
     def calculate_update_step(
         self,
@@ -112,7 +112,7 @@ class SGDOptimizer(Optimizer):
         regressor_contrib: float,
         regressor_values: Optional[Tuple[float, ...]],
     ) -> Tuple[float, ...]:
-        entity_grad: float = model.calculate_gradient(
+        entity_1_grad: float = model.calculate_gradient(
             y,
             model.ratings[entity_1][1],
             -model.ratings[entity_2][1],
@@ -120,13 +120,13 @@ class SGDOptimizer(Optimizer):
         )
         if regressor_values is None:
             return (
-                self.k_factor * entity_grad,
-                -self.k_factor * entity_grad,
+                self.k_factor[0] * entity_1_grad,
+                -self.k_factor[1] * entity_1_grad,
             )
         return (
-            entity_grad,
-            -entity_grad,
-            *(self.k_factor * v * entity_grad for v in regressor_values),
+            self.k_factor[0] * entity_1_grad,
+            -self.k_factor[1] * entity_1_grad,
+            *(k * v * entity_1_grad for k, v in zip(self.k_factor, regressor_values)),
         )
 
 
@@ -279,7 +279,7 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             init_ratings=init_ratings,
         )
         self.k_factor: float = k_factor
-        self.optimizer: Optimizer = SGDOptimizer(k_factor=k_factor)
+        self.optimizer: Optimizer = SGDOptimizer(k_factor=(k_factor, k_factor))
         self.track_rating_history: bool = track_rating_history
         self.rating_history: List[Tuple[Optional[int], float]] = defaultdict(list)  # type:ignore
 
