@@ -1,4 +1,6 @@
 import abc
+from dataclasses import dataclass
+
 from array import array
 from collections import defaultdict
 from typing import Tuple, Optional, Dict, List, Callable
@@ -11,7 +13,24 @@ from sklearn.metrics import log_loss
 
 from .plot import HistoryPlotterMixin
 
-__all__ = ["EloEstimator", "LogisticRegression", "RatingSystemMixin", "SGDOptimizer"]
+__all__ = ["EloEstimator", "LogisticRegression", "RatingSystemMixin", "Regressor", "SGDOptimizer"]
+
+
+@dataclass(frozen=True)
+class Regressor:
+    """
+    Regressor (additional) to entities.
+
+    name : str
+        Name of regressor column in dataset.
+    k_factor : Optional[float]
+        k-factor for this regressor's dimension. If None, the global k-factor for entities is used.
+    lambda_reg : Optional[float]
+        Regularisation parameter for regressor model coefficient, if L1 or L2 regularisation is used.
+    """
+    name: str
+    k_factor: Optional[float] = None
+    lambda_reg: Optional[float] = None
 
 
 class Model(abc.ABC):
