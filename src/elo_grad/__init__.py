@@ -275,6 +275,7 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
                 default_init_rating=self.default_init_rating,
                 init_ratings=self.init_ratings,
             )
+            self.optimizer = SGDOptimizer(k_factor=self.k_factor)
 
             return result
 
