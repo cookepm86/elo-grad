@@ -93,6 +93,7 @@ class LogisticRegression(Model):
 
         return y - y_pred
 
+    # It would be good to make the maxsize configurable
     @lru_cache(maxsize=512)
     def calculate_expected_score(self, *args) -> float:
         # I couldn't see any obvious speed-up from using NumPy/Numba data
