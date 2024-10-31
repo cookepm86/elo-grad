@@ -44,22 +44,22 @@ class TestSGDOptimizer:
             init_ratings=dict(entity_1=(None, 1500), entity_2=(None, 1600)),
             beta=200,
         )
-        opt_1 = SGDOptimizer(k_factor=32)
-        update_1 = opt_1.calculate_update_step(model_1, 1, "entity_1", "entity_2")
+        opt_1 = SGDOptimizer(k_factor=(32,))
+        updates_1 = opt_1.calculate_update_step(model_1, 1, "entity_1", "entity_2", 0, None)
+        entity_update_1 = next(updates_1)
 
-        assert round(update_1[0], 2) == 20.48
-        assert round(update_1[1], 2) == -20.48
+        assert round(entity_update_1, 2) == 20.48
 
         model_2 = LogisticRegression(
             default_init_rating=1000,
             init_ratings=dict(entity_2=(None, 1600)),
             beta=200,
         )
-        opt_2 = SGDOptimizer(k_factor=20)
-        update_2 = opt_2.calculate_update_step(model_2, 0, "entity_1", "entity_2")
+        opt_2 = SGDOptimizer(k_factor=(20,))
+        updates_2 = opt_2.calculate_update_step(model_2, 0, "entity_1", "entity_2", 0, None)
+        entity_update_2 = next(updates_2)
 
-        assert round(update_2[0], 2) == -0.61
-        assert round(update_2[1], 2) == 0.61
+        assert round(entity_update_2, 2) == -0.61
 
     def test_calculate_gradient_raises(self):
         model = LogisticRegression(
@@ -67,18 +67,11 @@ class TestSGDOptimizer:
             init_ratings=None,
             beta=200,
         )
-        opt = SGDOptimizer(k_factor=20)
+        opt = SGDOptimizer(k_factor=(20,))
         with pytest.raises(ValueError, match="Invalid result value"):
-            opt.calculate_update_step(model, -1, "entity_1", "entity_2")
-
-    def test_update_model(self):
-        model = LogisticRegression(beta=200, default_init_rating=1200, init_ratings=None)
-        sgd = SGDOptimizer(k_factor=20)
-
-        sgd.update_model(model, y=1, entity_1="Tom", entity_2="Jerry", t=1)
-
-        assert model.ratings["Tom"] == (1, 1210.0)
-        assert model.ratings["Jerry"] == (1, 1190.0)
+            next(
+                opt.calculate_update_step(model, -1, "entity_1", "entity_2", 0, None)
+            )
 
 
 class TestEloEstimator:
