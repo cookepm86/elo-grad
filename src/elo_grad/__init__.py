@@ -310,6 +310,11 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
                 default_init_rating=self.default_init_rating,
                 init_ratings=self.init_ratings,
             )
+            self.k_factor_vec = (
+                self.k_factor,
+                *(r.k_factor if r.k_factor is not None else self.k_factor for r in self.additional_regressors),
+            )
+            self.optimizer = SGDOptimizer(k_factor=self.k_factor_vec)
 
             return result
 
