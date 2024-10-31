@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from array import array
 from collections import defaultdict
-from typing import Tuple, Optional, Dict, List, Callable
+from typing import Tuple, Optional, Dict, List, Callable, Generator
 
 import math
 import numpy as np
@@ -69,7 +69,7 @@ class Optimizer(abc.ABC):
         entity_2: str,
         regressor_contrib: float,
         regressor_values: Optional[Tuple[float, ...]],
-    ) -> Tuple[float, ...]:
+    ) -> Generator[float, None, None]:
         ...
 
 class LogisticRegression(Model):
@@ -111,23 +111,17 @@ class SGDOptimizer(Optimizer):
         entity_2: str,
         regressor_contrib: float,
         regressor_values: Optional[Tuple[float, ...]],
-    ) -> Tuple[float, ...]:
-        entity_1_grad: float = model.calculate_gradient(
+    ) -> Generator[float, None, None]:
+        entity_grad: float = model.calculate_gradient(
             y,
             model.ratings[entity_1][1],
             -model.ratings[entity_2][1],
             regressor_contrib,
         )
-        if regressor_values is None:
-            return (
-                self.k_factor[0] * entity_1_grad,
-                -self.k_factor[1] * entity_1_grad,
-            )
-        return (
-            self.k_factor[0] * entity_1_grad,
-            -self.k_factor[1] * entity_1_grad,
-            *(k * v * entity_1_grad for k, v in zip(self.k_factor[2:], regressor_values)),
-        )
+        yield self.k_factor[0] * entity_grad
+        if regressor_values is not None:
+            for i, v in enumerate(regressor_values, start=1):
+                yield self.k_factor[i] * v * entity_grad
 
 
 class RatingSystemMixin:
@@ -291,7 +285,6 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         self.k_factor: float = k_factor
         self.k_factor_vec: Tuple[float, ...] = (
             k_factor,
-            k_factor,
             *(r.k_factor if r.k_factor is not None else k_factor for r in self.additional_regressors),
         )
         self.optimizer: Optimizer = SGDOptimizer(k_factor=self.k_factor_vec)
@@ -375,7 +368,7 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             if return_expected_score:
                 preds.append(expected_score)  # type:ignore
 
-            _rating_deltas: Tuple[float, ...] = self.optimizer.calculate_update_step(
+            _rating_deltas: Generator[float, None, None] = self.optimizer.calculate_update_step(
                 model=self.model,
                 y=score,
                 entity_1=entity_1,
@@ -383,11 +376,12 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
                 regressor_contrib=additional_regressor_contrib,
                 regressor_values=additional_regressor_values,
             )
-            rating_deltas[entity_1] += _rating_deltas[0]
-            rating_deltas[entity_2] += _rating_deltas[1]
+            entity_update: float = next(_rating_deltas)
+            rating_deltas[entity_1] += entity_update
+            rating_deltas[entity_2] -= entity_update
             if additional_regressor_flag:
-                for i, r in enumerate(self.additional_regressors, start=2):
-                    rating_deltas[r.name] += _rating_deltas[i]
+                for r in self.additional_regressors:
+                    rating_deltas[r.name] += next(_rating_deltas)
 
         self._update_ratings(ix, rating_deltas)
         if self.track_rating_history:
