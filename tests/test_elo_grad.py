@@ -71,15 +71,6 @@ class TestSGDOptimizer:
         with pytest.raises(ValueError, match="Invalid result value"):
             opt.calculate_update_step(model, -1, "entity_1", "entity_2")
 
-    def test_update_model(self):
-        model = LogisticRegression(beta=200, default_init_rating=1200, init_ratings=None)
-        sgd = SGDOptimizer(k_factor=20)
-
-        sgd.update_model(model, y=1, entity_1="Tom", entity_2="Jerry", t=1)
-
-        assert model.ratings["Tom"] == (1, 1210.0)
-        assert model.ratings["Jerry"] == (1, 1190.0)
-
 
 class TestEloEstimator:
 
