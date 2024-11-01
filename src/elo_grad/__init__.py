@@ -47,10 +47,6 @@ class Optimizer(abc.ABC):
     def calculate_update_step(self, model: Model, y: int, entity_1: str, entity_2: str) -> Tuple[float, ...]:
         ...
 
-    @abc.abstractmethod
-    def update_model(self, model: Model, y: int, entity_1: str, entity_2: str, t: Optional[int] = None) -> None:
-        ...
-
 
 class LogisticRegression(Model):
 
@@ -94,17 +90,6 @@ class SGDOptimizer(Optimizer):
         step: float = self.k_factor * grad
 
         return step, -step
-
-    def update_model(self, model: Model, y: int, entity_1: str, entity_2: str, t: Optional[int] = None) -> None:
-        delta = self.calculate_update_step(model, y, entity_1, entity_2)
-        model.ratings[entity_1] = (
-            t,
-            model.ratings[entity_1][1] + delta[0],
-        )
-        model.ratings[entity_2] = (
-            t,
-            model.ratings[entity_2][1] + delta[1],
-        )
 
 
 class RatingSystemMixin:
