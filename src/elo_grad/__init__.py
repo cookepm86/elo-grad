@@ -1,9 +1,10 @@
 import abc
+from dataclasses import dataclass
 from functools import lru_cache
 
 from array import array
 from collections import defaultdict
-from typing import Tuple, Optional, Dict, List, Callable
+from typing import Tuple, Optional, Dict, List, Callable, Generator
 
 import math
 import numpy as np
@@ -13,7 +14,24 @@ from sklearn.metrics import log_loss
 
 from .plot import HistoryPlotterMixin
 
-__all__ = ["EloEstimator", "LogisticRegression", "RatingSystemMixin", "SGDOptimizer"]
+__all__ = ["EloEstimator", "LogisticRegression", "RatingSystemMixin", "Regressor", "SGDOptimizer"]
+
+
+@dataclass(frozen=True)
+class Regressor:
+    """
+    Regressor (additional) to entities.
+
+    name : str
+        Name of regressor column in dataset.
+    k_factor : Optional[float]
+        k-factor for this regressor's dimension. If None, the global k-factor for entities is used.
+    lambda_reg : Optional[float]
+        Regularisation parameter for regressor model coefficient, if L1 or L2 regularisation is used.
+    """
+    name: str
+    k_factor: Optional[float] = None
+    lambda_reg: Optional[float] = None
 
 
 class Model(abc.ABC):
@@ -44,9 +62,18 @@ class Model(abc.ABC):
 class Optimizer(abc.ABC):
 
     @abc.abstractmethod
-    def calculate_update_step(self, model: Model, y: int, entity_1: str, entity_2: str) -> Tuple[float, ...]:
+    def calculate_update_step(
+        self,
+        model: Model,
+        y: int,
+        entity_1: str,
+        entity_2: str,
+        # The two arguments below help to optimize things, but are not very natural
+        # and will probably come back to bite me!
+        regressor_contrib: float,
+        regressor_values: Optional[Tuple[float, ...]],
+    ) -> Generator[float, None, None]:
         ...
-
 
 class LogisticRegression(Model):
 
@@ -78,18 +105,28 @@ class LogisticRegression(Model):
 
 class SGDOptimizer(Optimizer):
 
-    def __init__(self, k_factor: float) -> None:
-        self.k_factor: float = k_factor
+    def __init__(self, k_factor: Tuple[float, ...]) -> None:
+        self.k_factor: Tuple[float, ...] = k_factor
 
-    def calculate_update_step(self, model: Model, y: int, entity_1: str, entity_2: str) -> Tuple[float, ...]:
-        grad: float = model.calculate_gradient(
+    def calculate_update_step(
+        self,
+        model: Model,
+        y: int,
+        entity_1: str,
+        entity_2: str,
+        regressor_contrib: float,
+        regressor_values: Optional[Tuple[float, ...]],
+    ) -> Generator[float, None, None]:
+        entity_grad: float = model.calculate_gradient(
             y,
             model.ratings[entity_1][1],
             -model.ratings[entity_2][1],
+            regressor_contrib,
         )
-        step: float = self.k_factor * grad
-
-        return step, -step
+        yield self.k_factor[0] * entity_grad
+        if regressor_values is not None:
+            for i, v in enumerate(regressor_values, start=1):
+                yield self.k_factor[i] * v * entity_grad
 
 
 class RatingSystemMixin:
@@ -176,6 +213,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         Initial ratings for entities (dictionary of form entity: (Unix timestamp, rating))
     k_factor : float
         Elo K-factor/step-size for gradient descent.
+    k_factor_vec : Tuple[float, ...]
+        Vector of Elo K-factor/step-size for gradient descent.
     model : Model
         Underlying statistical model.
     optimizer : Optimizer
@@ -185,6 +224,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
     score_col : str
         Name of score column (1 if entity_1 wins and 0 if entity_2 wins).
         Draws are not currently supported.
+    additional_regressors : Optional[List[Regressor]]
+        Additional regressors to include, e.g. home advantage.
     track_rating_history : bool
         Flag to track historical ratings of entities.
 
@@ -208,13 +249,14 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         init_ratings: Optional[Dict[str, Tuple[Optional[int], float]]] = None,
         entity_cols: Tuple[str, str] = ("entity_1", "entity_2"),
         score_col: str = "score",
+        additional_regressors: Optional[List[Regressor]] = None,
         track_rating_history: bool = False,
     ) -> None:
         """
         Parameters
         ----------
         k_factor : float
-            Elo K-factor/step-size for gradient descent.
+            Elo K-factor/step-size for gradient descent for the entities.
         default_init_rating : float
             Default initial rating for entities.
         beta : float
@@ -226,6 +268,8 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
         score_col : str
             Name of score column (1 if entity_1 wins and 0 if entity_2 wins).
             Draws are not currently supported.
+        additional_regressors : Optional[List[Regressor]]
+            Additional regressors to include, e.g. home advantage.
         track_rating_history : bool
             Flag to track historical ratings of entities.
         """
@@ -240,8 +284,15 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             default_init_rating=default_init_rating,
             init_ratings=init_ratings,
         )
+        self.additional_regressors: List[Regressor] = additional_regressors if additional_regressors is not None else []
+        if additional_regressors is not None:
+            self.columns.extend([r.name for r in additional_regressors])
         self.k_factor: float = k_factor
-        self.optimizer: Optimizer = SGDOptimizer(k_factor=k_factor)
+        self.k_factor_vec: Tuple[float, ...] = (
+            k_factor,
+            *(r.k_factor if r.k_factor is not None else k_factor for r in self.additional_regressors),
+        )
+        self.optimizer: Optimizer = SGDOptimizer(k_factor=self.k_factor_vec)
         self.track_rating_history: bool = track_rating_history
         self.rating_history: List[Tuple[Optional[int], float]] = defaultdict(list)  # type:ignore
 
@@ -264,7 +315,11 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
                 default_init_rating=self.default_init_rating,
                 init_ratings=self.init_ratings,
             )
-            self.optimizer = SGDOptimizer(k_factor=self.k_factor)
+            self.k_factor_vec = (
+                self.k_factor,
+                *(r.k_factor if r.k_factor is not None else self.k_factor for r in self.additional_regressors),
+            )
+            self.optimizer = SGDOptimizer(k_factor=self.k_factor_vec)
 
             return result
 
@@ -294,31 +349,51 @@ class EloEstimator(HistoryPlotterMixin, RatingSystemMixin, BaseEstimator):
             raise ValueError("Index must be sorted.")
         current_ix: int = X.index[0]
 
+        additional_regressor_flag: bool = len(self.additional_regressors) > 0
+        additional_regressor_contrib: float = 0.0
+        additional_regressor_values: Optional[Tuple[float, ...]] = None
         preds = array("f") if return_expected_score else None
         rating_deltas: Dict[str, float] = defaultdict(float)
         for row in X.itertuples(index=True):
-            ix, entity_1, entity_2, score = row
+            if additional_regressor_flag:
+                ix, entity_1, entity_2, score, *additional_regressor_values = row
+            else:
+                ix, entity_1, entity_2, score = row
+
             if ix != current_ix:
                 self._update_ratings(ix, rating_deltas)
                 current_ix, rating_deltas = ix, defaultdict(float)
                 if self.track_rating_history:
                     self.record_ratings()
 
+            if additional_regressor_flag:
+                additional_regressor_contrib = sum(
+                    self.model.ratings[k.name][1] * v  # type:ignore
+                    for k, v in zip(self.additional_regressors, additional_regressor_values)  # type:ignore
+                )
+
             expected_score: float = self.model.calculate_expected_score(
                 self.model.ratings[entity_1][1],
                 -self.model.ratings[entity_2][1],
+                additional_regressor_contrib,
             )
             if return_expected_score:
                 preds.append(expected_score)  # type:ignore
 
-            rating_delta: Tuple[float, ...] = self.optimizer.calculate_update_step(
+            _rating_deltas: Generator[float, None, None] = self.optimizer.calculate_update_step(
                 model=self.model,
                 y=score,
                 entity_1=entity_1,
                 entity_2=entity_2,
+                regressor_contrib=additional_regressor_contrib,
+                regressor_values=additional_regressor_values,
             )
-            rating_deltas[entity_1] += rating_delta[0]
-            rating_deltas[entity_2] += rating_delta[1]
+            entity_update: float = next(_rating_deltas)
+            rating_deltas[entity_1] += entity_update
+            rating_deltas[entity_2] -= entity_update
+            if additional_regressor_flag:
+                for r in self.additional_regressors:
+                    rating_deltas[r.name] += next(_rating_deltas)
 
         self._update_ratings(ix, rating_deltas)
         if self.track_rating_history:

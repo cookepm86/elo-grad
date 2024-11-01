@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from elo_grad import LogisticRegression, SGDOptimizer, EloEstimator
+from elo_grad import LogisticRegression, SGDOptimizer, EloEstimator, Regressor
 
 
 class TestLogisticRegression:
@@ -44,22 +44,53 @@ class TestSGDOptimizer:
             init_ratings=dict(entity_1=(None, 1500), entity_2=(None, 1600)),
             beta=200,
         )
-        opt_1 = SGDOptimizer(k_factor=32)
-        update_1 = opt_1.calculate_update_step(model_1, 1, "entity_1", "entity_2")
+        opt_1 = SGDOptimizer(k_factor=(32,))
+        updates_1 = opt_1.calculate_update_step(model_1, 1, "entity_1", "entity_2", 0, None)
+        entity_update_1 = next(updates_1)
+        with pytest.raises(StopIteration):
+            next(updates_1)
 
-        assert round(update_1[0], 2) == 20.48
-        assert round(update_1[1], 2) == -20.48
+        assert round(entity_update_1, 2) == 20.48
 
         model_2 = LogisticRegression(
             default_init_rating=1000,
             init_ratings=dict(entity_2=(None, 1600)),
             beta=200,
         )
-        opt_2 = SGDOptimizer(k_factor=20)
-        update_2 = opt_2.calculate_update_step(model_2, 0, "entity_1", "entity_2")
+        opt_2 = SGDOptimizer(k_factor=(20,))
+        updates_2 = opt_2.calculate_update_step(model_2, 0, "entity_1", "entity_2", 0, None)
+        entity_update_2 = next(updates_2)
 
-        assert round(update_2[0], 2) == -0.61
-        assert round(update_2[1], 2) == 0.61
+        assert round(entity_update_2, 2) == -0.61
+
+    def test_calculate_update_step_additional_regressors(self):
+        model_1 = LogisticRegression(
+            default_init_rating=1000,
+            init_ratings=dict(entity_1=(None, 1500), entity_2=(None, 1600), home=(None, 10)),
+            beta=200,
+        )
+        opt_1 = SGDOptimizer(k_factor=(32, 1))
+        updates_1 = opt_1.calculate_update_step(model_1, 1, "entity_1", "entity_2", 10, (1,))
+        entity_update_1 = next(updates_1)
+        home_update_1 = next(updates_1)
+        with pytest.raises(StopIteration):
+            next(updates_1)
+
+        assert round(entity_update_1, 2) == 20.05
+        assert round(home_update_1, 2) == 0.63
+
+        model_2 = LogisticRegression(
+            default_init_rating=1000,
+            init_ratings=dict(entity_2=(None, 1600), home=(None, 20)),
+            beta=200,
+        )
+        opt_2 = SGDOptimizer(k_factor=(20, 10))
+        updates_2 = opt_2.calculate_update_step(model_2, 0, "entity_1", "entity_2", 0, (0,))
+        entity_update_2 = next(updates_2)
+        home_update_2 = next(updates_2)
+
+        assert round(entity_update_2, 2) == -0.61
+        assert round(home_update_2, 2) == 0.0
 
     def test_calculate_gradient_raises(self):
         model = LogisticRegression(
@@ -67,9 +98,11 @@ class TestSGDOptimizer:
             init_ratings=None,
             beta=200,
         )
-        opt = SGDOptimizer(k_factor=20)
+        opt = SGDOptimizer(k_factor=(20,))
         with pytest.raises(ValueError, match="Invalid result value"):
-            opt.calculate_update_step(model, -1, "entity_1", "entity_2")
+            next(
+                opt.calculate_update_step(model, -1, "entity_1", "entity_2", 0, None)
+            )
 
 
 class TestEloEstimator:
@@ -114,4 +147,40 @@ class TestEloEstimator:
             "C": (2, 1200 - 9.7123 + 9.9917 - 9.4413 + 9.4172),
         }
         for k, v in self.estimator.model.ratings.items():
+            assert round(expected_ratings[k][1], 2) == round(v[1], 2)
+
+    def test_transform_w_additional_regressors(self):
+        estimator = EloEstimator(
+            k_factor=20,
+            default_init_rating=1200,
+            init_ratings=dict(home=(None, 0)),
+            additional_regressors=[Regressor(name="home", k_factor=1)],
+        )
+        df = pd.DataFrame(
+            data=[
+                ("A", "B", 1, 1),
+                ("A", "C", 1, 1),
+                ("B", "C", 0, 0),
+                ("C", "A", 0, 0),
+                ("C", "B", 1, 1),
+            ],
+            columns=["entity_1", "entity_2", "score", "home"],
+            index=[1, 2, 3, 4, 4],
+        )
+
+        expected_arr = np.array([0.5, 0.52, 0.5, 0.47, 0.53])
+
+        output_arr = estimator.predict_proba(df)[:, 1]
+
+        # Check expected scores
+        np.testing.assert_allclose(expected_arr, output_arr, atol=1e-2)
+
+        # Check ratings
+        expected_ratings = {
+            "A": (2, 1200 + 10 + 9.6979 + 9.4421),
+            "B": (1, 1200 - 10 - 9.9913 - 9.3886),
+            "C": (2, 1200 - 9.6979 + 9.9913 - 9.4421 + 9.3886),
+            "home": (2, 0 + 0.5 + 0.4849 + 0.4694)
+        }
+        for k, v in estimator.model.ratings.items():
             assert round(expected_ratings[k][1], 2) == round(v[1], 2)
