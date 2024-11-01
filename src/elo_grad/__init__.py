@@ -1,4 +1,6 @@
 import abc
+from functools import lru_cache
+
 from array import array
 from collections import defaultdict
 from typing import Tuple, Optional, Dict, List, Callable
@@ -70,6 +72,8 @@ class LogisticRegression(Model):
 
         return y - y_pred
 
+    # We should make maxsize configurable
+    @lru_cache(maxsize=512)
     def calculate_expected_score(self, *args) -> float:
         # I couldn't see any obvious speed-up from using NumPy/Numba data
         # structures but should revisit this.
